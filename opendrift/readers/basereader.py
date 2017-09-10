@@ -281,7 +281,7 @@ class BaseReader(object):
         # Check which particles are covered (indep of time)
         ind_covered = self.covers_positions(lon, lat, z)
         if len(ind_covered) == 0:
-            raise ValueError(('All %s particles (%.2f-%.2fE, %.2f-%.2fN) ' +
+            raise ValueError(('All %s particles (%.10f-%.10fE, %.10f-%.10fN) ' +
                               'are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
                               lat.max(), self.name, self.coverage_string()))
@@ -424,12 +424,16 @@ class BaseReader(object):
                                                 env_after[var] * weight_after))
 
                 if var in standard_names.keys():
-                    if (env[var].min() < standard_names[var]['valid_min']) \
-                            or (env[var].max() >
-                                standard_names[var]['valid_max']):
-                        logging.info('Invalid values found for ' + var)
-                        logging.info(env[var])
-                        sys.exit('quitting')
+                    invalid = np.where((env[var] < standard_names[var]['valid_min']) 
+                               | (env[var] > standard_names[var]['valid_max']))[0]
+                    if len(invalid) > 0:
+                        logging.warning('Invalid values found for ' + var)
+                        logging.warning(env[var][invalid])
+                        logging.warning('(allowed range: [%s, %s])' %
+                                        (standard_names[var]['valid_min'],
+                                         standard_names[var]['valid_max']))
+                        logging.warning('Replacing with NaN')
+                        env[var][invalid] = np.nan
             # Interpolating vertical profiles in time
             if profiles is not None:
                 env_profiles = {}
@@ -625,6 +629,7 @@ class BaseReader(object):
     def covers_positions(self, lon, lat, z=0):
         """Return indices of input points covered by reader."""
 
+        #print("FIND INDICES OF INPUT POINTS IN READER", lon, lat, self.name)
         # Compensate for wrapping about 0 or 180 longitude
         if self.proj.is_latlong():
             if self.xmax > 180:
@@ -632,6 +637,7 @@ class BaseReader(object):
 
         # Calculate x,y coordinates from lon,lat
         x, y = self.lonlat2xy(lon, lat)
+        #print("FOUND xy", x,y)
 
         if hasattr(self, 'zmin'):
             if self.zmin is not None:
@@ -658,6 +664,8 @@ class BaseReader(object):
             else:
                 zmax = np.inf
 
+        #print("Between x", self.xmin, self.xmax)
+        #print("Between y", self.ymin, self.ymax)
         indices = np.where((x >= self.xmin) & (x <= self.xmax) &
                            (y >= self.ymin) & (y <= self.ymax) &
                            (z >= zmin) & (z <= zmax))[0]
@@ -668,7 +676,7 @@ class BaseReader(object):
         """Coverage of reader to be reported as string for debug output"""
         corners = self.xy2lonlat([self.xmin, self.xmin, self.xmax, self.xmax],
                                  [self.ymax, self.ymin, self.ymax, self.ymin])
-        return '%.2f-%.2fE, %.2f-%.2fN' % (
+        return '%.10f-%.10fE, %.10f-%.10fN' % (
                     np.min(corners[0]), np.max(corners[0]),
                     np.min(corners[1]), np.max(corners[1]))
 
@@ -718,8 +726,8 @@ class BaseReader(object):
         indices = np.where((x > self.xmin) & (x < self.xmax) &
                            (y > self.ymin) & (y < self.ymax))[0]
         if len(indices) == 0:
-            raise ValueError(('Coverage: all %s particles (%.2f-%.2fE, ' +
-                              '%.2f-%.2fN) are outside domain of %s (%s)') %
+            raise ValueError(('Coverage: all %s particles (%.10f-%.10fE, ' +
+                              '%.10f-%.10fN) are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
                               lat.max(), self.name, self.coverage_string()))
 
@@ -774,12 +782,13 @@ class BaseReader(object):
             raise ValueError('Requested time (%s) is after last available '
                              'time (%s) of %s' % (time, self.end_time,
                                                   self.name))
-        outside = np.where((x < self.xmin) | (x > self.xmax) |
+        outside = np.where(~np.isfinite(x+y) |
+                           (x < self.xmin) | (x > self.xmax) |
                            (y < self.ymin) | (y > self.ymax))[0]
         if np.size(outside) == np.size(x):
             lon, lat = self.xy2lonlat(x, y)
-            raise ValueError(('Argcheck: all %s particles (%.2f-%.2fE, ' +
-                              '%.2f-%.2fN) are outside domain of %s (%s)') %
+            raise ValueError(('Argcheck: all %s particles (%.10f-%.10fE, ' +
+                              '%.10f-%.10fN) are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
                               lat.max(), self.name, self.coverage_string()))
 

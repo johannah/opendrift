@@ -7,7 +7,6 @@ from opendrift.readers import reader_netCDF_CF_generic
 from opendrift.models.openoil import OpenOil
 
 o = OpenOil(loglevel=0)  # Set loglevel to 0 for debug information
-
 # HYCOM
 #reader_hycom = reader_netCDF_CF_generic.Reader('http://tds.hycom.org/thredds/dodsC/GLBu0.08/expt_19.1/2010/3hrly')
 #print reader_hycom

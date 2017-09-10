@@ -36,12 +36,11 @@ lats = lats.ravel()
 o.seed_elements(lons, lats, radius=0, number=10000,
                 time=reader_norkyst.start_time)
 
-print o
+print( o)
 
 # Running model (until end of driver data)
 o.run(steps=66*2, time_step=1800)
 
 # Print and plot results
-print o
 o.animation()
 #o.plot()

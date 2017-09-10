@@ -42,17 +42,17 @@ o.add_reader([reader_basemap, reader_current, reader_wind])
 #wind_drift_factor = 0.03
 
 # Giving each element a unique (random) wind_drift_factor
-wind_drift_factor = np.random.uniform(0, 0.06, 2000)
+wind_drift_factor = np.random.uniform(0, 0.06, 100)
 
-o.seed_elements(4.7, 59.9, radius=3000, number=2000,
+o.seed_elements(4.7, 59.9, radius=3000, number=100,
                 time=reader_current.start_time,
                 wind_drift_factor=wind_drift_factor)
 
 #######################
 # Running model
 #######################
-o.run(time_step=timedelta(minutes=15),
-      time_step_output=timedelta(minutes=60))
+o.run(time_step=timedelta(minutes=1),
+      time_step_output=timedelta(minutes=10))
 
 ###########################
 # Print and plot results

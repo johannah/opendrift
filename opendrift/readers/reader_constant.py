@@ -51,5 +51,6 @@ class Reader(BaseReader):
         for var in requestedVariables:
             variables[var] = self._parameter_value_map[var]*np.ones(x.shape)
        
+        #from IPython import embed; embed()
         return variables
         

@@ -120,14 +120,16 @@ class OpenDriftSimulation(PhysicsMethods):
                 stokes_drift = boolean(default=True)
                 current_uncertainty = float(min=0, max=5, default=.1)
                 wind_uncertainty = float(min=0, max=5, default=1)
-                relative_wind = boolean(default=False)'''
+                relative_wind = boolean(default=False)
+                use_tabularised_stokes_drift = boolean(default=False)
+                tabularised_stokes_drift_fetch = option(5000, 25000, 50000, default=25000)'''
 
     max_speed = 1  # Assumed max average speed of any element
     required_profiles = None  # Optional possibility to get vertical profiles
     required_profiles_z_range = None  # [min_depth, max_depth]
 
     def __init__(self, proj4=None, seed=0, iomodule='netcdf',
-                 loglevel=logging.DEBUG):
+                 loglevel=logging.INFO):
         """Initialise OpenDriftSimulation
 
         Args:
@@ -484,6 +486,7 @@ class OpenDriftSimulation(PhysicsMethods):
             # Check that reader class contains the requested variables
             if variables is not None:
                 missingVariables = set(variables) - set(reader.variables)
+                #print("READER IS PROVIDING", reader.variables)
                 if missingVariables:
                     raise ValueError('Reader %s does not provide variables: %s'
                                      % (reader.name, list(missingVariables)))
@@ -795,16 +798,33 @@ class OpenDriftSimulation(PhysicsMethods):
         # Some extra checks of units and realistic magnitude
         #######################################################
         if 'sea_water_temperature' in variables:
-            t_kelvin = np.where((env['sea_water_temperature']>273) & (env['sea_water_temperature']<350))[0]
+            t_kelvin = np.where(env['sea_water_temperature']>100)[0]
             if len(t_kelvin) > 0:
                 logging.warning('Converting temperatures from Kelvin to Celcius')
                 env['sea_water_temperature'][t_kelvin] = env['sea_water_temperature'][t_kelvin] - 273.15
                 if 'env_profiles' in locals() and 'sea_water_temperature' in env_profiles.keys():
-                    t_kelvin = np.where((
-                        env_profiles['sea_water_temperature']>273) &
-                       (env_profiles['sea_water_temperature']<350))[0]
-                    env_profiles['sea_water_temperature'][t_kelvin] = \
-                        env_profiles['sea_water_temperature'][t_kelvin] - 273.15
+                  env_profiles['sea_water_temperature'][:,t_kelvin] = \
+                    env_profiles['sea_water_temperature'][:,t_kelvin] - 273.15
+
+        #######################################################
+        # Parameterisation of unavailable variables
+        #######################################################
+        if self.get_config('drift:use_tabularised_stokes_drift') is True:
+            if (env['sea_surface_wave_stokes_drift_x_velocity'].max() == 0 and 
+                env['sea_surface_wave_stokes_drift_y_velocity'].max() == 0):
+                    logging.info('Calculating parameterised stokes drift')
+                    for i in range(len(env['x_wind'])):
+                        env['sea_surface_wave_stokes_drift_x_velocity'][i], \
+                        env['sea_surface_wave_stokes_drift_y_velocity'][i] = \
+                            self.wave_stokes_drift_parameterised((env['x_wind'][i], env['y_wind'][i]),
+                            self.get_config('drift:tabularised_stokes_drift_fetch'))
+
+            if (env['sea_surface_wave_significant_height'].max() == 0):
+                    logging.info('Calculating parameterised significant wave height')
+                    for i in range(len(env['x_wind'])):
+                        env['sea_surface_wave_significant_height'][i] = \
+                            self.wave_significant_height_parameterised((env['x_wind'][i], env['y_wind'][i]),
+                            self.get_config('drift:tabularised_stokes_drift_fetch'))
        
         #####################
         # Diagnostic output
@@ -884,7 +904,8 @@ class OpenDriftSimulation(PhysicsMethods):
 
     def num_elements_activated(self):
         """The total number of active and deactivated elements."""
-        return self.num_elements_active() + self.num_elements_deactivated()
+        # JRH with deactivated, the count is incorrect
+        return self.num_elements_active() #+ self.num_elements_deactivated()
 
     def schedule_elements(self, elements, time):
         """Schedule elements to be seeded during runtime.
@@ -1063,6 +1084,7 @@ class OpenDriftSimulation(PhysicsMethods):
                         scalarargs[kwarg] = kwargs[kwarg]
                 # Make sure to call seed function of base class,
                 # not of a specific Children class
+                logging.info("creating seed elements")
                 OpenDriftSimulation.seed_elements(
                     self, lon=[lon[i]], lat=[lat[i]], radius=radius_array[i],
                     number=int(number_array[i]),
@@ -1199,7 +1221,7 @@ class OpenDriftSimulation(PhysicsMethods):
             import ogr
             import osr
         except Exception as e:
-            print e
+            #print e
             raise ValueError('OGR library is needed to read shapefiles.')
 
         if 'timeformat' in kwargs:
@@ -1406,11 +1428,13 @@ class OpenDriftSimulation(PhysicsMethods):
             self.steps_calculation = 0
         if hasattr(self, 'history'):
             # Delete history matrix before new run
-            delattr(self, 'history')
+            pass
+            # JRH TODO ? MAYBE PUT BACK BELOW
+            #delattr(self, 'history')
             # Renumbering elements from 0 to num_elements, necessary fix when
             # importing from file, where elements may have been deactivated
             # TODO: should start from 1?
-            self.elements.ID = np.arange(0, self.num_elements_active())
+            #self.elements.ID = np.arange(0, self.num_elements_active())
 
         ########################
         # Simulation time step
@@ -1671,6 +1695,7 @@ class OpenDriftSimulation(PhysicsMethods):
         self.interact_with_coastline()
         self.state_to_buffer()  # Append final status to buffer
 
+        #from IPython import embed; embed()
         if outfile is not None:
             logging.debug('Writing and closing output file: %s' % outfile)
             # Write buffer to outfile, and close
@@ -1684,8 +1709,9 @@ class OpenDriftSimulation(PhysicsMethods):
 
         if export_buffer_length is None:
             # Remove columns for unseeded elements in history array
-            self.history = self.history[
-                range(self.num_elements_activated()), :]
+            # JRH think this deletes deactivated from list and doesn't make sense
+            #self.history = self.history[
+            #    range(self.num_elements_activated()), :]
             # Remove rows for unreached timsteps in history array
             self.history = self.history[:, range(self.steps_output)]
         else:  # If output has been flushed to file during run, we
@@ -1703,6 +1729,7 @@ class OpenDriftSimulation(PhysicsMethods):
 
     def state_to_buffer(self):
         """Append present state (elements and environment) to recarray."""
+
 
         steps_calculation_float = \
             (self.steps_calculation * self.time_step.total_seconds() /
@@ -1749,6 +1776,7 @@ class OpenDriftSimulation(PhysicsMethods):
                 ((self.steps_output - self.steps_exported) ==
                     self.export_buffer_length):
             self.io_write_buffer()
+        #from IPython import embed; embed()
 
     def index_of_activation_and_deactivation(self):
         """Return the indices when elements were seeded and deactivated."""
@@ -1837,8 +1865,12 @@ class OpenDriftSimulation(PhysicsMethods):
             firstlast = np.ma.notmasked_edges(x, axis=1)
             index_of_first = firstlast[0][1]
             index_of_last = firstlast[1][1]
+            
         except:
-            index_of_last = 0
+            # JRH not sure if this is correct
+            firstlast = np.ma.notmasked_edges(x, axis=1)
+            index_of_first = firstlast[0]
+            index_of_last = firstlast[1]
 
         try:  # Activate figure zooming
             mng = plt.get_current_fig_manager()
@@ -2222,7 +2254,7 @@ class OpenDriftSimulation(PhysicsMethods):
             if legend is not None:
                 plt.legend(loc=legend)
         except Exception as e:
-            print 'Cannot plot legend, due to bug in matplotlib:'
+            print( 'Cannot plot legend, due to bug in matplotlib:')
             print traceback.format_exc()
 
         if background is not None:
