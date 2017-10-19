@@ -162,7 +162,7 @@ class Reader(BaseReader):
         super(Reader, self).__init__()
 
     def get_variables(self, requested_variables, time=None,
-                      x=None, y=None, z=None, block=False):
+                      x=None, y=None, z=None, block=False,jo_plot=False):
 
         requested_variables, time, x, y, z, outside = self.check_arguments(
             requested_variables, time, x, y, z)
@@ -186,6 +186,7 @@ class Reader(BaseReader):
         # Find indices corresponding to requested x and y
         indx = np.floor((x-self.xmin)/self.delta_x).astype(int)
         indy = np.floor((y-self.ymin)/self.delta_y).astype(int)
+        print("INDX", indx.shape)
         # If x or y coordinates are decreasing, we need to flip
         if self.x[0] > self.x[-1]:
             indx = len(self.x) - indx
@@ -212,26 +213,42 @@ class Reader(BaseReader):
             elif var.ndim == 3:
                 variables[par] = var[indxTime, indy, indx]
             elif var.ndim == 4:
-                variables[par] = var[indxTime, indz, indy, indx]
+                if jo_plot:
+                    # hack because the netcdf cannot index large num 
+                    ss = np.array(var[indxTime,indz,:,:])
+                    assert(indx.shape == indy.shape)
+                    print("MAXMIN", ss.min(), ss.max())
+                    variables[par] = ss[indy.ravel(),indx.ravel()].reshape(indx.shape)
+                    #from IPython import embed; embed()
+                else:
+                    variables[par] = var[indxTime, indz, indy, indx]
             else:
                 raise Exception('Wrong dimension of variable: ' +
                                 self.variable_mapping[par])
 
+            #from IPython import embed; embed()
             # If 2D array is returned due to the fancy slicing methods
             # of netcdf-python, we need to take the diagonal
             if variables[par].ndim > 1 and block is False:
-                variables[par] = variables[par].diagonal()
+                if not jo_plot:
+                    variables[par] = variables[par].diagonal()
 
             # Mask values outside domain
-            variables[par] = np.ma.array(variables[par], ndmin=2, mask=False)
-            if block is False:
-                variables[par].mask[outside] = True
+            if not jo_plot:
+                variables[par] = np.ma.array(variables[par], ndmin=2, mask=False)
+                if block is False:
+                    variables[par].mask[outside] = True
 
+        variables['time'] = nearestTime
         # Store coordinates of returned points
         try:
             variables['z'] = self.z[indz]
         except:
             variables['z'] = None
+        if jo_plot:
+            variables['x'] = indx
+            variables['y'] = indy
+            return variables
         if block is True:
             variables['x'] = \
                 self.Dataset.variables[self.xname][indx]*self.unitfactor
@@ -243,6 +260,5 @@ class Reader(BaseReader):
             variables['x'] = self.xmin + (indx-1)*self.delta_x
             variables['y'] = self.ymin + (indy-1)*self.delta_y
 
-        variables['time'] = nearestTime
         #from IPython import embed; embed()
         return variables

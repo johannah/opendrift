@@ -22,7 +22,6 @@ from basereader import BaseReader
 
 class Reader(BaseReader):
     '''Returning values oscillating in time with given amplitude and period'''
-    
     def __init__(self, variable, amplitude, period_seconds=3600*24,
                  phase=0, zero_time=datetime(2017, 1, 1, 0)):
         '''init with '''

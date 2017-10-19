@@ -55,11 +55,14 @@ class Reader(BaseReader):
         
         variables = {'time': time, 'z': z}
 
+        #from IPython import embed; embed()
         #print("READING FROM GRID", x)
         # get indices
         indx = []
         indy = []
+            #from IPython import embed; embed()
         if type(x) in [list, np.ndarray]:
+
             for xx in list(x):
                 indx.append(np.argmin(abs(xx-self.x)))
         elif type(x) == type(None):
@@ -74,7 +77,7 @@ class Reader(BaseReader):
             indy = None
         else:
             # value?
-            indy.append(np.argmin(abs(x-self.x)))
+            indy.append(np.argmin(abs(y-self.y)))
        
 
         if type(indx) == type(None):

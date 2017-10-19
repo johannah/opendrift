@@ -2175,7 +2175,7 @@ class OpenDriftSimulation(PhysicsMethods):
         max_elements = 5000.0
         alpha = min_alpha**(2*(self.num_elements_total()-1)/(max_elements-1))
         alpha = np.max((min_alpha, alpha))
-        if hasattr(self, 'history'):
+        if False: # hasattr(self, 'history'):
             # Plot trajectories
             if linecolor is None:
                 map.plot(x.T, y.T, color='gray', alpha=alpha)
@@ -2214,48 +2214,48 @@ class OpenDriftSimulation(PhysicsMethods):
                 axcb.set_label(colorbarstring, size=14)
                 axcb.ax.tick_params(labelsize=14)
 
-        map.scatter(x[range(x.shape[0]), index_of_first],
-                    y[range(x.shape[0]), index_of_first],
-                    zorder=10, edgecolor='k', linewidths=.2,
-                    color=self.status_colors['initial'],
-                    label='initial (%i)' % x.shape[0])
-        map.scatter(x[range(x.shape[0]), index_of_last],
-                    y[range(x.shape[0]), index_of_last],
-                    zorder=3, edgecolor='k', linewidths=.2,
-                    color=self.status_colors['active'],
-                    label='active (%i)' %
-                    (x.shape[0] - self.num_elements_deactivated()))
+        #map.scatter(x[range(x.shape[0]), index_of_first],
+        #            y[range(x.shape[0]), index_of_first],
+        #            zorder=10, edgecolor='k', linewidths=.2,
+        #            color=self.status_colors['initial'],
+        #            label='initial (%i)' % x.shape[0])
+        #map.scatter(x[range(x.shape[0]), index_of_last],
+        #            y[range(x.shape[0]), index_of_last],
+        #            zorder=3, edgecolor='k', linewidths=.2,
+        #            color=self.status_colors['active'],
+        #            label='active (%i)' %
+        #            (x.shape[0] - self.num_elements_deactivated()))
 
-        x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
-                                           self.elements_deactivated.lat)
+        #x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
+        #                                   self.elements_deactivated.lat)
         # Plot deactivated elements, labeled by deactivation reason
-        for statusnum, status in enumerate(self.status_categories):
-            if status == 'active':
-                continue  # plotted above
-            if status not in self.status_colors:
-                # If no color specified, pick an unused one
-                for color in ['red', 'blue', 'green', 'black', 'gray',
-                              'cyan', 'DarkSeaGreen', 'brown']:
-                    if color not in self.status_colors.values():
-                        self.status_colors[status] = color
-                        break
-            indices = np.where(self.elements_deactivated.status == statusnum)
-            if len(indices[0]) > 0:
-                if (status == 'seeded_on_land' or
-                    status == 'seeded_at_nodata_position'):
-                    zorder = 11
-                else:
-                    zorder = 3
-                map.scatter(x_deactivated[indices], y_deactivated[indices],
-                            zorder=zorder, edgecolor='k', linewidths=.1,
-                            color=self.status_colors[status],
-                            label='%s (%i)' % (status, len(indices[0])))
-        try:
-            if legend is not None:
-                plt.legend(loc=legend)
-        except Exception as e:
-            print( 'Cannot plot legend, due to bug in matplotlib:')
-            print traceback.format_exc()
+        #for statusnum, status in enumerate(self.status_categories):
+        #    if status == 'active':
+        #        continue  # plotted above
+        #    if status not in self.status_colors:
+        #        # If no color specified, pick an unused one
+        #        for color in ['red', 'blue', 'green', 'black', 'gray',
+        #                      'cyan', 'DarkSeaGreen', 'brown']:
+        #            if color not in self.status_colors.values():
+        #                self.status_colors[status] = color
+        #                break
+        #    indices = np.where(self.elements_deactivated.status == statusnum)
+        #    if len(indices[0]) > 0:
+        #        if (status == 'seeded_on_land' or
+        #            status == 'seeded_at_nodata_position'):
+        #            zorder = 11
+        #        else:
+        #            zorder = 3
+        #        map.scatter(x_deactivated[indices], y_deactivated[indices],
+        #                    zorder=zorder, edgecolor='k', linewidths=.1,
+        #                    color=self.status_colors[status],
+        #                    label='%s (%i)' % (status, len(indices[0])))
+        #try:
+        #    if legend is not None:
+        #        plt.legend(loc=legend)
+        #except Exception as e:
+        #    print( 'Cannot plot legend, due to bug in matplotlib:')
+        #    print traceback.format_exc()
 
         if background is not None:
             map_x, map_y, scalar, u_component, v_component = \
@@ -2277,55 +2277,56 @@ class OpenDriftSimulation(PhysicsMethods):
                     plt.clabel(CS, fmt='%g')
 
             if type(background) is list:
+                #from IPython import embed; embed()
                 map.quiver(map_x[::skip, ::skip], map_y[::skip, ::skip],
                            u_component[::skip, ::skip],
                            v_component[::skip, ::skip], scale=scale)
 
-        if title is not None:
-            if title is 'auto':
-                if hasattr(self, 'time'):
-                    plt.title(type(self).__name__ + '  %s to %s (%i steps)' %
-                              (self.start_time.strftime('%Y-%m-%d %H:%M'),
-                               self.time.strftime('%Y-%m-%d %H:%M'),
-                               self.steps_output))
-                else:
-                    plt.title(type(self).__name__ + ' - %i elements seeded at %s' %
-                              (self.num_elements_scheduled(),
-                               self.elements_scheduled_time[0].strftime(
-                               '%Y-%m-%d %H:%M')))
-            else:
-                plt.title(title)
-
-        if drifter_file is not None:
-            # Format of joubeh.com
-            for dfile in drifter_file:
-                data = np.recfromcsv(dfile)
-                x, y = map(data['longitude'], data['latitude'])
-                map.plot(x, y, '-k', linewidth=2)
-                map.plot(x[0], y[0], '*k')
-                map.plot(x[-1], y[-1], '*k')
-
-            # Format for shell buoy
-            #data = np.loadtxt(drifter_file, skiprows=1, usecols=(2, 3))
-            #x, y = map(data.T[1], data.T[0])
-            #map.plot(x, y, '-r', linewidth=2, zorder=10)
-            #map.plot(x[0], y[0], '*r', zorder=10)
-            #map.plot(x[-1], y[-1], '*r', zorder=10)
-
-        if trajectory_dict is not None:
-            self._plot_trajectory_dict(map, trajectory_dict)
-
-        #plt.gca().tick_params(labelsize=14)
-
-        if filename is not None:
-            #plt.savefig(filename, dpi=200)
-            plt.savefig(filename)
-            plt.close()
-        else:
-            if show is True:
-                plt.show()
-
-        return map, plt
+#        if title is not None:
+#            if title is 'auto':
+#                if hasattr(self, 'time'):
+#                    plt.title(type(self).__name__ + '  %s to %s (%i steps)' %
+#                              (self.start_time.strftime('%Y-%m-%d %H:%M'),
+#                               self.time.strftime('%Y-%m-%d %H:%M'),
+#                               self.steps_output))
+#                else:
+#                    plt.title(type(self).__name__ + ' - %i elements seeded at %s' %
+#                              (self.num_elements_scheduled(),
+#                               self.elements_scheduled_time[0].strftime(
+#                               '%Y-%m-%d %H:%M')))
+#            else:
+#                plt.title(title)
+#
+#        if drifter_file is not None:
+#            # Format of joubeh.com
+#            for dfile in drifter_file:
+#                data = np.recfromcsv(dfile)
+#                x, y = map(data['longitude'], data['latitude'])
+#                map.plot(x, y, '-k', linewidth=2)
+#                map.plot(x[0], y[0], '*k')
+#                map.plot(x[-1], y[-1], '*k')
+#
+#            # Format for shell buoy
+#            #data = np.loadtxt(drifter_file, skiprows=1, usecols=(2, 3))
+#            #x, y = map(data.T[1], data.T[0])
+#            #map.plot(x, y, '-r', linewidth=2, zorder=10)
+#            #map.plot(x[0], y[0], '*r', zorder=10)
+#            #map.plot(x[-1], y[-1], '*r', zorder=10)
+#
+#        if trajectory_dict is not None:
+#            self._plot_trajectory_dict(map, trajectory_dict)
+#
+#        #plt.gca().tick_params(labelsize=14)
+#
+#        if filename is not None:
+#            #plt.savefig(filename, dpi=200)
+#            plt.savefig(filename)
+#            plt.close()
+#        else:
+#            if show is True:
+#                plt.show()
+#
+#        return map, plt
 
     def _plot_trajectory_dict(self, map, trajectory_dict):
         '''Plot provided trajectory along with simulated'''
@@ -2351,7 +2352,7 @@ class OpenDriftSimulation(PhysicsMethods):
             if variable in reader.variables:
                 break
         # Get lat/lons of ny by nx evenly space grid.
-        lons, lats = map.makegrid(4, 4)
+        lons, lats = map.makegrid(8, 8)
         reader_x, reader_y = reader.lonlat2xy(lons, lats)
         data = reader.get_variables(
             background, time, reader_x, reader_y, 0, block=True)
@@ -2361,9 +2362,11 @@ class OpenDriftSimulation(PhysicsMethods):
             v_component = data[background[1]]
             scalar = np.sqrt(u_component**2 + v_component**2)
             # NB: rotation not completed!
+            print("before rotation", reader_x.shape, u_component.shape)
             u_component, v_component = reader.rotate_vectors(
                 reader_x, reader_y, u_component, v_component,
                 reader.proj, map.srs)
+            print("after rotation", u_component.shape)
         else:
             scalar = data[background]
             u_component = v_component = None
