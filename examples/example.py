@@ -35,7 +35,7 @@ time = [reader_arome.start_time,
 #time = reader_arome.start_time
 
 # Seed oil elements at defined position and time
-o.seed_elements(lon, lat, radius=50, number=3000, time=time,
+o.seed_elements(lon, lat, radius=50, number=10, time=time,
                 wind_drift_factor=.02)
 
 print o
@@ -56,8 +56,8 @@ o.run(end_time=reader_norkyst.end_time, time_step=1800,
 
 # Print and plot results
 print o
-#o.plot(background=['x_sea_water_velocity', 'y_sea_water_velocity'], buffer=.5)
-o.animation()
+o.plot(background=['x_sea_water_velocity', 'y_sea_water_velocity'], buffer=.5)
+#o.animation()
 #o.animation(filename='openoil_time_seed.gif')
 o.plot()
 #o.plot_property('mass_oil')

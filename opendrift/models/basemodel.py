@@ -23,8 +23,12 @@ import logging
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from abc import ABCMeta, abstractmethod, abstractproperty
+import multiprocessing
+import platform
+import netCDF4
 
 import numpy as np
+import scipy
 import configobj, validate
 try:
     from mpl_toolkits.basemap import Basemap
@@ -678,6 +682,7 @@ class OpenDriftSimulation(PhysicsMethods):
                             profiles_from_reader = None
                     else:
                         profiles_from_reader = None
+                    print("AT LINE 685")
                     env_tmp, env_profiles_tmp = \
                         reader.get_variables_interpolated(
                             variable_group, profiles_from_reader,
@@ -1518,12 +1523,12 @@ class OpenDriftSimulation(PhysicsMethods):
             reader_basemap = reader_basemap_landmask.Reader(
                 llcrnrlon=self.elements_scheduled.lon.min() - deltalon,
                 urcrnrlon=self.elements_scheduled.lon.max() + deltalon,
-                llcrnrlat=self.elements_scheduled.lat.min() - deltalat,
+                llcrnrlat=np.maximum(-89, self.elements_scheduled.lat.min() -
+                                     deltalat),
                 urcrnrlat=np.minimum(89, self.elements_scheduled.lat.max() +
                                      deltalat),
                 resolution=self.get_config('general:basemap_resolution'),
-                projection='merc',
-                minimise_whitespace=self.get_config('general:minimise_map_whitespace'))
+                projection='merc')
             self.add_reader(reader_basemap)
             self.dynamical_landmask = True
             self.timer_end('preparing main loop:making dynamical landmask')
@@ -1951,8 +1956,8 @@ class OpenDriftSimulation(PhysicsMethods):
         return lons, lats
 
     def animation(self, buffer=.2, filename=None, compare=None,
-                  background=None, vmin=None, vmax=None, skip=5, scale=10,
-                  legend=['', ''], markersize=5, fps=10):
+                  background=None, vmin=None, vmax=None, skip=100, scale=10,
+                  legend=None, legend_loc='best', markersize=5, fps=10):
         """Animate last run."""
 
         def plot_timestep(i):
@@ -2073,6 +2078,7 @@ class OpenDriftSimulation(PhysicsMethods):
         x = self.get_property('lon')[0].T
         #seafloor_depth = \
         #    -self.get_property('sea_floor_depth_below_sea_level')[0].T
+        plt.close()
         fig = plt.figure(figsize=(10, 6.))  # Suitable aspect ratio
         ax = fig.gca()
         plt.xlabel('Longitude [degrees]')
@@ -2140,8 +2146,8 @@ class OpenDriftSimulation(PhysicsMethods):
 
     def plot(self, background=None, buffer=.2, linecolor=None, filename=None,
              drifter_file=None, show=True, vmin=None, vmax=None,
-             lvmin=None, lvmax=None, skip=2, scale=10, show_scalar=True,
-             contourlines=False, trajectory_dict=None,
+             lvmin=None, lvmax=None, skip=10, scale=10, show_scalar=True,
+             contourlines=False, trajectory_dict=None, colorbar=True,
              title='auto', legend='best', **kwargs):
         """Basic built-in plotting function intended for developing/debugging.
 
@@ -2175,8 +2181,9 @@ class OpenDriftSimulation(PhysicsMethods):
         max_elements = 5000.0
         alpha = min_alpha**(2*(self.num_elements_total()-1)/(max_elements-1))
         alpha = np.max((min_alpha, alpha))
-        if False: # hasattr(self, 'history'):
+        if hasattr(self, 'history'):
             # Plot trajectories
+            print("Plotting history")
             if linecolor is None:
                 map.plot(x.T, y.T, color='gray', alpha=alpha)
             else:
@@ -2214,48 +2221,49 @@ class OpenDriftSimulation(PhysicsMethods):
                 axcb.set_label(colorbarstring, size=14)
                 axcb.ax.tick_params(labelsize=14)
 
-        #map.scatter(x[range(x.shape[0]), index_of_first],
-        #            y[range(x.shape[0]), index_of_first],
-        #            zorder=10, edgecolor='k', linewidths=.2,
-        #            color=self.status_colors['initial'],
-        #            label='initial (%i)' % x.shape[0])
-        #map.scatter(x[range(x.shape[0]), index_of_last],
-        #            y[range(x.shape[0]), index_of_last],
-        #            zorder=3, edgecolor='k', linewidths=.2,
-        #            color=self.status_colors['active'],
-        #            label='active (%i)' %
-        #            (x.shape[0] - self.num_elements_deactivated()))
 
-        #x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
-        #                                   self.elements_deactivated.lat)
+        map.scatter(x[range(x.shape[0]), index_of_first],
+                    y[range(x.shape[0]), index_of_first],
+                    zorder=10, edgecolor='k', linewidths=.2,
+                    color=self.status_colors['initial'],
+                    label='initial (%i)' % x.shape[0])
+        map.scatter(x[range(x.shape[0]), index_of_last],
+                    y[range(x.shape[0]), index_of_last],
+                    zorder=3, edgecolor='k', linewidths=.2,
+                    color=self.status_colors['active'],
+                    label='active (%i)' %
+                    (x.shape[0] - self.num_elements_deactivated()))
+
+        x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
+                                           self.elements_deactivated.lat)
         # Plot deactivated elements, labeled by deactivation reason
-        #for statusnum, status in enumerate(self.status_categories):
-        #    if status == 'active':
-        #        continue  # plotted above
-        #    if status not in self.status_colors:
-        #        # If no color specified, pick an unused one
-        #        for color in ['red', 'blue', 'green', 'black', 'gray',
-        #                      'cyan', 'DarkSeaGreen', 'brown']:
-        #            if color not in self.status_colors.values():
-        #                self.status_colors[status] = color
-        #                break
-        #    indices = np.where(self.elements_deactivated.status == statusnum)
-        #    if len(indices[0]) > 0:
-        #        if (status == 'seeded_on_land' or
-        #            status == 'seeded_at_nodata_position'):
-        #            zorder = 11
-        #        else:
-        #            zorder = 3
-        #        map.scatter(x_deactivated[indices], y_deactivated[indices],
-        #                    zorder=zorder, edgecolor='k', linewidths=.1,
-        #                    color=self.status_colors[status],
-        #                    label='%s (%i)' % (status, len(indices[0])))
-        #try:
-        #    if legend is not None:
-        #        plt.legend(loc=legend)
-        #except Exception as e:
-        #    print( 'Cannot plot legend, due to bug in matplotlib:')
-        #    print traceback.format_exc()
+        for statusnum, status in enumerate(self.status_categories):
+            if status == 'active':
+                continue  # plotted above
+            if status not in self.status_colors:
+                # If no color specified, pick an unused one
+                for color in ['red', 'blue', 'green', 'black', 'gray',
+                              'cyan', 'DarkSeaGreen', 'brown']:
+                    if color not in self.status_colors.values():
+                        self.status_colors[status] = color
+                        break
+            indices = np.where(self.elements_deactivated.status == statusnum)
+            if len(indices[0]) > 0:
+                if (status == 'seeded_on_land' or
+                    status == 'seeded_at_nodata_position'):
+                    zorder = 11
+                else:
+                    zorder = 3
+                map.scatter(x_deactivated[indices], y_deactivated[indices],
+                            zorder=zorder, edgecolor='k', linewidths=.1,
+                            color=self.status_colors[status],
+                            label='%s (%i)' % (status, len(indices[0])))
+        try:
+            if legend is not None:
+                plt.legend(loc=legend)
+        except Exception as e:
+            print( 'Cannot plot legend, due to bug in matplotlib:')
+            print traceback.format_exc()
 
         if background is not None:
             map_x, map_y, scalar, u_component, v_component = \
@@ -2351,26 +2359,30 @@ class OpenDriftSimulation(PhysicsMethods):
             reader = self.readers[readerName]
             if variable in reader.variables:
                 break
+        if time is None:
+            if hasattr(self, 'elements_scheduled_time'):
+                # Using time of first seeded element
+                time = self.elements_scheduled_time[0]
         # Get lat/lons of ny by nx evenly space grid.
-        lons, lats = map.makegrid(8, 8)
+        lons, lats = map.makegrid(4, 4)
         reader_x, reader_y = reader.lonlat2xy(lons, lats)
         data = reader.get_variables(
             background, time, reader_x, reader_y, 0, block=True)
-        reader_x, reader_y = np.meshgrid(data['x'], data['y'])
+        reader_xmesh, reader_ymesh = np.meshgrid(data['x'], data['y'])
         if type(background) is list:
             u_component = data[background[0]]
             v_component = data[background[1]]
             scalar = np.sqrt(u_component**2 + v_component**2)
             # NB: rotation not completed!
-            print("before rotation", reader_x.shape, u_component.shape)
+            print("before rotation", reader_xmesh.shape, u_component.shape)
             u_component, v_component = reader.rotate_vectors(
-                reader_x, reader_y, u_component, v_component,
+                reader_xmesh, reader_ymesh, u_component, v_component,
                 reader.proj, map.srs)
             print("after rotation", u_component.shape)
         else:
             scalar = data[background]
             u_component = v_component = None
-        rlons, rlats = reader.xy2lonlat(reader_x, reader_y)
+        rlons, rlats = reader.xy2lonlat(reader_xmesh, reader_ymesh)
         map_x, map_y = map(rlons, rlats)
 
         return map_x, map_y, scalar, u_component, v_component

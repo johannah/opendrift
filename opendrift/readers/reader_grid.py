@@ -20,23 +20,27 @@ import numpy as np
 
 
 class Reader(BaseReader):
-    '''A very simple reader that always give the same value for its variables'''
     
     def __init__(self, x, y, delta_x, delta_y, parameter_value_map):
         '''init with a map {'variable_name': value, ...}'''
 
         for key, var in parameter_value_map.iteritems():
             parameter_value_map[key] = np.atleast_1d(var)
+        self.projected = True
+        
         self._parameter_value_map = parameter_value_map
         self.variables = parameter_value_map.keys()
         # values are lat lon
         self.proj4 = '+proj=latlong'
+
         self.xmin = min(x)
         self.xmax = max(x)
         self.ymin = min(y)
         self.ymax = max(y)
         self.x = x
         self.y = y
+        self.numx = x.shape[0]
+        self.numy = y.shape[0]
         # delta meters
         self.delta_x = delta_x
         self.delta_y = delta_y
@@ -44,7 +48,6 @@ class Reader(BaseReader):
         self.end_time = None
         self.time_step = None
         self.name = 'grid_reader'
-        self.return_block = False
 
         # Run constructor of parent Reader class
         super(Reader, self).__init__()
@@ -53,26 +56,32 @@ class Reader(BaseReader):
     def get_variables(self, requested_variables, time=None,
                       x=None, y=None, z=None, block=False):
         
+        print('X shap begin', x.shape)
         variables = {'time': time, 'z': z}
 
-        #from IPython import embed; embed()
-        #print("READING FROM GRID", x)
         # get indices
         indx = []
         indy = []
-            #from IPython import embed; embed()
-        if type(x) in [list, np.ndarray]:
-
-            for xx in list(x):
+        if type(x) == list:
+            for xx in x:
+                indy.append(np.argmin(abs(xx-self.x)))
+        elif type(x) == np.ndarray:
+            for xx in list(x.ravel()):
                 indx.append(np.argmin(abs(xx-self.x)))
+            indx = np.array(indx)#.reshape(x.shape)
         elif type(x) == type(None):
             indx = None
         else:
             # value?
             indx.append(np.argmin(abs(x-self.x)))
-        if type(y) in [list, np.ndarray]:
-            for yy in list(y):
+        if type(y) == list:
+            for yy in y:
                 indy.append(np.argmin(abs(yy-self.y)))
+        elif type(y) == np.ndarray: 
+            for yy in list(y.ravel()):
+                indy.append(np.argmin(abs(yy-self.y)))
+            indy = np.array(indy)#.reshape(y.shape)
+
         elif type(y) == type(None):
             indy = None
         else:
@@ -80,6 +89,18 @@ class Reader(BaseReader):
             indy.append(np.argmin(abs(y-self.y)))
        
 
+        print('Xind shap begin', indx.shape)
+        if block is True: 
+            # add buffer to cover future positions of elements
+            buf = self.buffer
+            indx = np.arange(np.max([0, indx.min()-buf]), 
+                             np.min([indx.max()+buf, self.numx]))
+            indy = np.arange(np.max([0, indy.min()-buf]), 
+                             np.min([indy.max()+buf, self.numy]))
+
+        print('Xind shap block', indx.shape)
+
+ 
         if type(indx) == type(None):
             variables['x'] = None
             variables['y'] = None
@@ -94,9 +115,15 @@ class Reader(BaseReader):
             variables['y'] = self.y[indy]
             for par in requested_variables:
                 if par in self._parameter_value_map.keys():
-                    #print("READING", par, indy, indx)
-                    variables[par] = self._parameter_value_map[par][indx, indy]
+                    var = self._parameter_value_map[par]
+                    try:
+                        variables[par] = var[indy,:][:, indx]
+                    except Exception, e:
+                        print(e)
                     #print(par,'from index', indx,  variables[par])
         
+        print("FINISHED")
+        print('var[x]', variables['x'].shape)
+        print('var[other]', par,variables[par].shape)
         return variables
         

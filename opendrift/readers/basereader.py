@@ -17,6 +17,7 @@
 import sys
 import logging
 import copy
+from inspect import currentframe, getframeinfo
 from bisect import bisect_left
 from abc import abstractmethod, ABCMeta
 
@@ -299,17 +300,22 @@ class BaseReader(object):
         z = z.copy()[ind_covered]  # Send values and not reference
                                    # to avoid modifications
 
+        print("BLOCK!!!!!", block, self.return_block)
         if block is False or self.return_block is False:
             # Analytical reader, continous in space and time
+            # JRH this is the block i'm using in drifter_grid example
             env_before = self._get_variables(variables, profiles,
                                              profiles_depth,
                                              time,
                                              #time_before,
                                              reader_x, reader_y, z,
                                              block=block)
+
             logging.debug('Fetched env-before')
+            fi = getframeinfo(currentframe())
 
         else:
+
             # Swap before- and after-blocks if matching times
             if str(variables) in self.var_block_before:
                 block_before_time = self.var_block_before[
@@ -325,6 +331,7 @@ class BaseReader(object):
                         if block_before_time == time_before:
                             self.var_block_after[str(variables)] = \
                                 self.var_block_before[str(variables)]
+
             # Fetch data, if no buffer is available
             if (not str(variables) in self.var_block_before) or \
                     (self.var_block_before[str(variables)].time !=
@@ -346,6 +353,7 @@ class BaseReader(object):
                               (len(self.var_block_before[str(variables)].x),
                                len(self.var_block_before[str(variables)].y),
                                len_z, time_before))
+
             if not str(variables) in self.var_block_after or \
                     self.var_block_after[str(variables)].time != time_after:
                 if time_after is None:
@@ -374,6 +382,7 @@ class BaseReader(object):
                                        str(variables)].y),
                                    len_z, time_after))
 
+
             if self.var_block_before[str(variables)].covers_positions(
                 reader_x, reader_y) is False or \
                 self.var_block_after[str(variables)].covers_positions(
@@ -393,6 +402,7 @@ class BaseReader(object):
                 str(variables)].interpolate(
                     reader_x, reader_y, z, variables,
                     profiles, profiles_depth)
+
 
             if (time_after is not None) and (time_before != time):
                 logging.debug('Interpolating after (%s) in space  (%s)' %
@@ -454,6 +464,7 @@ class BaseReader(object):
 
         else:
             logging.debug('No time interpolation needed - right on time.')
+
             env = env_before
             if profiles is not None:
                 if 'env_profiles_before' in locals():
@@ -461,7 +472,10 @@ class BaseReader(object):
                 else:
                     # Copying data from environment to vertical profiles
                     env_profiles = {'z': profiles_depth}
+
+
                     for var in profiles:
+
                         env_profiles[var] = np.ma.array([env[var], env[var]])
 
         ####################
@@ -491,6 +505,7 @@ class BaseReader(object):
 
                 if len(vector_pairs) > 0:
                     for vector_pair in vector_pairs:
+
                         env[vector_pair[0]], env[vector_pair[1]] = \
                             self.rotate_vectors(reader_x, reader_y,
                                                 env[vector_pair[0]],
