@@ -40,8 +40,8 @@ print(slons.shape)
 ll = LatLon(Latitude(slats.min()), Longitude(slons.min()))
 lr = LatLon(Latitude(slats.min()), Longitude(slons.max()))
 ul = LatLon(Latitude(slats.max()), Longitude(slons.min()))
-xdis = ll.distance(lr)
-ydis = ll.distance(ul)
+xdis = ll.distance(lr)*1000.
+ydis = ll.distance(ul)*1000.
 delta_x = xsize/float(xdis)
 delta_y = ysize/float(ydis)
 u = np.ones((ysize,xsize))*-.5
@@ -93,3 +93,4 @@ o.run(steps=50, time_step=timedelta(minutes=94))
 # Plot trajectories, colored by the wind_drift_factor of each element
 o.plot(background=['x_sea_water_velocity', 'y_sea_water_velocity'])
 plt.show()
+print('delta',delta_x, delta_y)

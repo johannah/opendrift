@@ -164,7 +164,6 @@ class Reader(BaseReader):
     def get_variables(self, requested_variables, time=None,
                       x=None, y=None, z=None, block=False,jo_plot=False):
 
-        print("X SHAP BEGIN", x.shape)
         joo = False
         requested_variables, time, x, y, z, outside = self.check_arguments(
             requested_variables, time, x, y, z)
@@ -189,6 +188,8 @@ class Reader(BaseReader):
         indx = np.floor((x-self.xmin)/self.delta_x).astype(int)
         indy = np.floor((y-self.ymin)/self.delta_y).astype(int)
 
+        indxi = indx
+        indyi = indy
         print("Xind SHAP" , indx.shape)
         # If x or y coordinates are decreasing, we need to flip
         if self.x[0] > self.x[-1]:
@@ -209,6 +210,7 @@ class Reader(BaseReader):
         print("Xind BLOC" , indx.shape)
         variables = {}
 
+        from IPython import embed; embed()
         for par in requested_variables:
             var = self.Dataset.variables[self.variable_mapping[par]]
 

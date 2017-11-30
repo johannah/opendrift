@@ -274,6 +274,7 @@ class BaseReader(object):
                                    lon=None, lat=None, z=None,
                                    block=False, rotate_to_proj=None):
 
+        fi = getframeinfo(currentframe())
         # Raise error if time not not within coverage of reader
         if not self.covers_time(time):
             raise ValueError('%s is outside time coverage (%s - %s) of %s' %
@@ -281,12 +282,24 @@ class BaseReader(object):
 
         # Check which particles are covered (indep of time)
         ind_covered = self.covers_positions(lon, lat, z)
+        #print("NUM LONS CONSIDERED", len(lon), len(ind_covered))
+        #from IPython import embed; embed();
+        # if none of the considered points are covered by our map
         if len(ind_covered) == 0:
+            # JRH 
+            #print( 'Interpolated, All %s particles (%.10f-%.10fE, %.10f-%.10fN) ' +
+            #                  'are outside domain of %s (%s)' %
+            #                 (len(lon), lon.min(), lon.max(), lat.min(),
+            #                  lat.max(), self.name, self.coverage_string()))
+
+
+            #return None, None
             raise ValueError(('All %s particles (%.10f-%.10fE, %.10f-%.10fN) ' +
                               'are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
                               lat.max(), self.name, self.coverage_string()))
 
+        fi = getframeinfo(currentframe())
         # Find reader time_before/time_after
         time_nearest, time_before, time_after, i1, i2, i3 = \
             self.nearest_time(time)
@@ -299,8 +312,9 @@ class BaseReader(object):
                                             lat[ind_covered])
         z = z.copy()[ind_covered]  # Send values and not reference
                                    # to avoid modifications
+        fi = getframeinfo(currentframe())
 
-        print("BLOCK!!!!!", block, self.return_block)
+        #print("BEFORE BLOCK!!!!!", block, self.return_block)
         if block is False or self.return_block is False:
             # Analytical reader, continous in space and time
             # JRH this is the block i'm using in drifter_grid example
@@ -312,10 +326,9 @@ class BaseReader(object):
                                              block=block)
 
             logging.debug('Fetched env-before')
-            fi = getframeinfo(currentframe())
-
+            #fi = getframeinfo(currentframe())
+            #print("++++", fi.filename, fi.lineno)
         else:
-
             # Swap before- and after-blocks if matching times
             if str(variables) in self.var_block_before:
                 block_before_time = self.var_block_before[
@@ -331,11 +344,17 @@ class BaseReader(object):
                         if block_before_time == time_before:
                             self.var_block_after[str(variables)] = \
                                 self.var_block_before[str(variables)]
+                    #fi = getframeinfo(currentframe())
+                    #print("++++", fi.filename, fi.lineno)
 
             # Fetch data, if no buffer is available
             if (not str(variables) in self.var_block_before) or \
                     (self.var_block_before[str(variables)].time !=
                      time_before):
+
+                #fi = getframeinfo(currentframe())
+                #print("++++", fi.filename, fi.lineno, "BLOCK", block)
+                # JRH netcdf ex goes in here
                 reader_data_dict = \
                     self._get_variables(variables, profiles,
                                         profiles_depth, time_before,
@@ -652,7 +671,6 @@ class BaseReader(object):
 
         # Calculate x,y coordinates from lon,lat
         x, y = self.lonlat2xy(lon, lat)
-        #print("FOUND xy", x,y)
 
         if hasattr(self, 'zmin'):
             if self.zmin is not None:
@@ -684,7 +702,23 @@ class BaseReader(object):
         indices = np.where((x >= self.xmin) & (x <= self.xmax) &
                            (y >= self.ymin) & (y <= self.ymax) &
                            (z >= zmin) & (z <= zmax))[0]
+        allin = np.arange(y.shape[0])
+        bad_indices = allin[np.isin(allin, indices, invert=True)]
 
+        #if bad_indices.shape[0]:
+        #    print("xy is out of bounds at", x[bad_indices], y[bad_indices])
+        #print("XMIN", self.xmin, self.xmax)
+        #print("YMIN", self.ymin, self.ymax)
+        #print(x.min(), x.max(), y.min(), y.max())
+        #if indices.shape[0] == 0:
+        #    print("FOUND xy", x,y)
+        #    print("XMIN", self.xmin, self.xmax)
+        #    print("YMIN", self.ymin, self.ymax)
+        #    print(indices.shape,x.shape)
+        #    print("GOOD", x[indices], y[indices])
+        #    #from IPython import embed; embed()
+
+        # indices that are sent back are the good indices
         return indices
 
     def coverage_string(self):
@@ -741,6 +775,15 @@ class BaseReader(object):
         indices = np.where((x > self.xmin) & (x < self.xmax) &
                            (y > self.ymin) & (y < self.ymax))[0]
         if len(indices) == 0:
+            # JRH  - TRY returning nothing and then check for it
+            #return [], [], []
+            print("ALL PARTICLES are outside of domain")
+            #print("""Coverage: all %s particles (%.10f-%.10fE, %.10f-%.10fN) are outside domain of %s (%s)""" % (len(lon), lon.min(), lon.max(), lat.min(),
+            #                  lat.max(), self.name, self.coverage_string()))
+
+
+
+            #return None, None, None
             raise ValueError(('Coverage: all %s particles (%.10f-%.10fE, ' +
                               '%.10f-%.10fN) are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
@@ -802,7 +845,7 @@ class BaseReader(object):
                            (y < self.ymin) | (y > self.ymax))[0]
         if np.size(outside) == np.size(x):
             lon, lat = self.xy2lonlat(x, y)
-            raise ValueError(('Argcheck: all %s particles (%.10f-%.10fE, ' +
+            raise ValueError(('Argcheck: argcheck all %s particles (%.10f-%.10fE, ' +
                               '%.10f-%.10fN) are outside domain of %s (%s)') %
                              (len(lon), lon.min(), lon.max(), lat.min(),
                               lat.max(), self.name, self.coverage_string()))

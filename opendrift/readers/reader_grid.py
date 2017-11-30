@@ -28,15 +28,16 @@ class Reader(BaseReader):
             parameter_value_map[key] = np.atleast_1d(var)
         self.projected = True
         
+        self.buffer = 10
         self._parameter_value_map = parameter_value_map
         self.variables = parameter_value_map.keys()
         # values are lat lon
-        self.proj4 = '+proj=latlong'
+        self.proj4 = '+proj=latlong'  
 
-        self.xmin = min(x)
-        self.xmax = max(x)
-        self.ymin = min(y)
-        self.ymax = max(y)
+        self.xmin = min(x)-delta_x
+        self.xmax = max(x)+delta_x
+        self.ymin = min(y)-delta_y
+        self.ymax = max(y)+delta_y
         self.x = x
         self.y = y
         self.numx = x.shape[0]
@@ -56,74 +57,86 @@ class Reader(BaseReader):
     def get_variables(self, requested_variables, time=None,
                       x=None, y=None, z=None, block=False):
         
-        print('X shap begin', x.shape)
+#        requested_variables, time, x, y, z, outside = self.check_arguments(
+#            requested_variables, time, x, y, z)
+#        print('X shap begin', x.shape)
         variables = {'time': time, 'z': z}
-
-        # get indices
-        indx = []
-        indy = []
-        if type(x) == list:
-            for xx in x:
-                indy.append(np.argmin(abs(xx-self.x)))
-        elif type(x) == np.ndarray:
-            for xx in list(x.ravel()):
-                indx.append(np.argmin(abs(xx-self.x)))
-            indx = np.array(indx)#.reshape(x.shape)
-        elif type(x) == type(None):
-            indx = None
-        else:
-            # value?
-            indx.append(np.argmin(abs(x-self.x)))
-        if type(y) == list:
-            for yy in y:
-                indy.append(np.argmin(abs(yy-self.y)))
-        elif type(y) == np.ndarray: 
-            for yy in list(y.ravel()):
-                indy.append(np.argmin(abs(yy-self.y)))
-            indy = np.array(indy)#.reshape(y.shape)
-
-        elif type(y) == type(None):
-            indy = None
-        else:
-            # value?
-            indy.append(np.argmin(abs(y-self.y)))
-       
-
-        print('Xind shap begin', indx.shape)
-        if block is True: 
-            # add buffer to cover future positions of elements
-            buf = self.buffer
-            indx = np.arange(np.max([0, indx.min()-buf]), 
-                             np.min([indx.max()+buf, self.numx]))
-            indy = np.arange(np.max([0, indy.min()-buf]), 
-                             np.min([indy.max()+buf, self.numy]))
-
-        print('Xind shap block', indx.shape)
-
- 
-        if type(indx) == type(None):
+#        xi = x
+#        yi = y
+#        indx = np.floor((x-self.xmin)/self.delta_x).astype(np.int)
+#        indy = np.floor((y-self.ymin)/self.delta_y).astype(np.int)
+#
+#        if self.x[0] > self.x[-1]:
+#            indx = len(self.x) - indx
+#        if self.y[0] > self.y[-1]:
+#            indy = len(self.y) - indy
+#        ## get indices
+#        #indx = []
+#        #indy = []
+#        #if type(x) == list:
+#        #    for xx in x:
+#        #        indy.append(np.argmin(abs(xx-self.x)))
+#        #elif type(x) == np.ndarray:
+#        #    for xx in list(x.ravel()):
+#        #        indx.append(np.argmin(abs(xx-self.x)))
+#        #    indx = np.array(indx)#.reshape(x.shape)
+#        #elif type(x) == type(None):
+#        #    indx = None
+#        #else:
+#        #    # value?
+#        #    indx.append(np.argmin(abs(x-self.x)))
+#        #if type(y) == list:
+#        #    for yy in y:
+#        #        indy.append(np.argmin(abs(yy-self.y)))
+#        #elif type(y) == np.ndarray: 
+#        #    for yy in list(y.ravel()):
+#        #        indy.append(np.argmin(abs(yy-self.y)))
+#        #    indy = np.array(indy)#.reshape(y.shape)
+#
+#        #elif type(y) == type(None):
+#        #    indy = None
+#        #else:
+#        #    # value?
+#        #    indy.append(np.argmin(abs(y-self.y)))
+#       
+#
+#        indxi = indx
+#        indyi = indy
+#        print('Xind shap begin', indx.shape)
+#        if block is True: 
+#            # add buffer to cover future positions of elements
+#            buf = self.buffer
+#            indx = np.arange(np.max([0, indx.min()-buf]), 
+#                             np.min([indx.max()+buf, self.numx]))
+#            indy = np.arange(np.max([0, indy.min()-buf]), 
+#                             np.min([indy.max()+buf, self.numy]))
+#
+#
+#        print('Xind shap block', indx.shape)
+#
+# 
+#        from IPython import embed; embed()
+        if type(x) == type(None):
             variables['x'] = None
             variables['y'] = None
             for par in requested_variables:
                if par in self._parameter_value_map.keys():
                    #print("READING", par, indy, indx)
                    variables[par] = None
-            
-            
         else:
-            variables['x'] = self.x[indx]
-            variables['y'] = self.y[indy]
+            variables['x'] = self.x[:]
+            variables['y'] = self.y[:]
             for par in requested_variables:
                 if par in self._parameter_value_map.keys():
                     var = self._parameter_value_map[par]
                     try:
-                        variables[par] = var[indy,:][:, indx]
+                        variables[par] = var
                     except Exception, e:
                         print(e)
                     #print(par,'from index', indx,  variables[par])
         
-        print("FINISHED")
-        print('var[x]', variables['x'].shape)
-        print('var[other]', par,variables[par].shape)
+#        print("FINISHED")
+#        print('var[x]', variables['x'].shape)
+#        print('var[other]', par,variables[par].shape)
         return variables
         

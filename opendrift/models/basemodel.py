@@ -128,7 +128,7 @@ class OpenDriftSimulation(PhysicsMethods):
                 use_tabularised_stokes_drift = boolean(default=False)
                 tabularised_stokes_drift_fetch = option(5000, 25000, 50000, default=25000)'''
 
-    max_speed = 1  # Assumed max average speed of any element
+    max_speed = 2  # Assumed max average speed of any element
     required_profiles = None  # Optional possibility to get vertical profiles
     required_profiles_z_range = None  # [min_depth, max_depth]
 
@@ -682,13 +682,15 @@ class OpenDriftSimulation(PhysicsMethods):
                             profiles_from_reader = None
                     else:
                         profiles_from_reader = None
-                    print("AT LINE 685")
                     env_tmp, env_profiles_tmp = \
                         reader.get_variables_interpolated(
                             variable_group, profiles_from_reader,
                             self.required_profiles_z_range, time,
                             lon[missing_indices], lat[missing_indices],
                             z[missing_indices], self.use_block, self.proj)
+                    if type(env_tmp) == type(None):
+                        # JRH all elements are outside of boundary area
+                        print("ALL VARIABLES ARE OUTSIDE OF BOUNDARY, quiting loop")
 
                 except Exception as e:
                     logging.info('========================')
@@ -1638,50 +1640,53 @@ class OpenDriftSimulation(PhysicsMethods):
                               self.num_elements_scheduled())
                 logging.debug('==================================='*2)
 
-                self.environment, self.environment_profiles, missing = \
-                    self.get_environment(self.required_variables,
-                                         self.time,
-                                         self.elements.lon,
-                                         self.elements.lat,
-                                         self.elements.z,
-                                         self.required_profiles)
+                #JRH I want it to return after running out of active particles
+                # should check outside
+                if self.num_elements_active():
+                    self.environment, self.environment_profiles, missing = \
+                        self.get_environment(self.required_variables,
+                                             self.time,
+                                             self.elements.lon,
+                                             self.elements.lat,
+                                             self.elements.z,
+                                             self.required_profiles)
 
-                self.interact_with_coastline()
+                    self.interact_with_coastline()
 
-                self.deactivate_elements(missing, reason='missing_data')
+                    self.deactivate_elements(missing, reason='missing_data')
 
-                self.state_to_buffer()  # Append status to history array
+                    self.state_to_buffer()  # Append status to history array
 
-                self.remove_deactivated_elements()
+                    self.remove_deactivated_elements()
 
-                # Propagate one timestep forwards
-                self.steps_calculation += 1
+                    # Propagate one timestep forwards
+                    self.steps_calculation += 1
 
-                if self.num_elements_active() == 0:
-                    raise ValueError('No more active elements, quitting.')
+                    if self.num_elements_active() == 0:
+                        raise ValueError('No more active elements, quitting.')
 
-                # Store location, in case elements shall be moved back
-                self.store_present_positions()
+                    # Store location, in case elements shall be moved back
+                    self.store_present_positions()
 
-                #####################################################
-                logging.debug('Calling %s.update()' %
-                              type(self).__name__)
-                self.timer_start('main loop:updating elements')
-                self.update()
-                self.timer_end('main loop:updating elements')
-                #####################################################
+                    #####################################################
+                    logging.debug('Calling %s.update()' %
+                                  type(self).__name__)
+                    self.timer_start('main loop:updating elements')
+                    self.update()
+                    self.timer_end('main loop:updating elements')
+                    #####################################################
 
-                #self.lift_elements_to_seafloor()  # If seafloor is penetrated
+                    #self.lift_elements_to_seafloor()  # If seafloor is penetrated
 
-                if self.num_elements_active() == 0:
-                    raise ValueError('No active elements, quitting simulation')
+                    if self.num_elements_active() == 0:
+                        raise ValueError('No active elements, quitting simulation')
 
-                logging.debug('%s active elements (%s deactivated)' %
-                              (self.num_elements_active(),
-                               self.num_elements_deactivated()))
-                # Updating time
-                if self.time is not None:
-                    self.time = self.time + self.time_step
+                    logging.debug('%s active elements (%s deactivated)' %
+                                  (self.num_elements_active(),
+                                   self.num_elements_deactivated()))
+                    # Updating time
+                    if self.time is not None:
+                        self.time = self.time + self.time_step
 
             except Exception as e:
                 logging.info('========================')
@@ -1797,13 +1802,23 @@ class OpenDriftSimulation(PhysicsMethods):
         lons, lats = self.get_lonlats()
 
         # Initialise map
-        lonmin = lons.min() - buffer*2
-        lonmax = lons.max() + buffer*2
-        latmin = lats.min() - buffer
-        latmax = lats.max() + buffer
+        if max(lons.shape)>0:
+            lonmin = lons.min() - buffer*2
+            lonmax = lons.max() + buffer*2
+            latmin = lats.min() - buffer
+            latmax = lats.max() + buffer
+        else:
+            lonmin = -180 
+            lonmax = 180 
+            latmin = 90 
+            latmax = 90 
         if 'basemap_landmask' in self.readers:
             # Using an eventual Basemap already used to check stranding
             map = self.readers['basemap_landmask'].map
+            lonmin = map.boundarylonmin
+            lonmax = map.boundarylonmax 
+            latmin = min(map.boundarylats)
+            latmax = max(map.boundarylats)
         else:
             # Otherwise create a new Basemap covering the elements
             ## Calculate aspect ratio, to minimise whitespace on figures
@@ -1949,10 +1964,16 @@ class OpenDriftSimulation(PhysicsMethods):
                 lons = np.ma.array(np.reshape(self.elements.lon, (1, -1))).T
                 lats = np.ma.array(np.reshape(self.elements.lat, (1, -1))).T
             else:
-                lons = np.ma.array(
-                    np.reshape(self.elements_scheduled.lon, (1, -1))).T
-                lats = np.ma.array(
-                    np.reshape(self.elements_scheduled.lat, (1, -1))).T
+                 # JRH make sure elements scheduled exists
+                 if hasattr(self, 'elements_scheduled'):
+                     lons = np.ma.array(
+                         np.reshape(self.elements_scheduled.lon, (1, -1))).T
+                     lats = np.ma.array(
+                         np.reshape(self.elements_scheduled.lat, (1, -1))).T
+                 else:
+                     lons = np.array([])
+                     lats = np.array([])
+
         return lons, lats
 
     def animation(self, buffer=.2, filename=None, compare=None,
@@ -2147,7 +2168,7 @@ class OpenDriftSimulation(PhysicsMethods):
     def plot(self, background=None, buffer=.2, linecolor=None, filename=None,
              drifter_file=None, show=True, vmin=None, vmax=None,
              lvmin=None, lvmax=None, skip=10, scale=10, show_scalar=True,
-             contourlines=False, trajectory_dict=None, colorbar=True,
+             contourlines=False, trajectory_dict=None, colorbar=True, plot_particles=True,
              title='auto', legend='best', **kwargs):
         """Basic built-in plotting function intended for developing/debugging.
 
@@ -2181,89 +2202,90 @@ class OpenDriftSimulation(PhysicsMethods):
         max_elements = 5000.0
         alpha = min_alpha**(2*(self.num_elements_total()-1)/(max_elements-1))
         alpha = np.max((min_alpha, alpha))
-        if hasattr(self, 'history'):
-            # Plot trajectories
-            print("Plotting history")
-            if linecolor is None:
-                map.plot(x.T, y.T, color='gray', alpha=alpha)
-            else:
-                # Color lines according to given parameter
-                try:
-                    param = self.history[linecolor]
-                except:
-                    raise ValueError(
-                        'Available parameters to be used for linecolors: ' +
-                        str(self.history.dtype.fields))
-                from matplotlib.collections import LineCollection
-                for i in range(x.shape[0]):
-                    vind = np.arange(index_of_first[i], index_of_last[i] + 1)
-                    points = np.array(
-                        [x[i, vind].T, y[i, vind].T]).T.reshape(-1, 1, 2)
-                    segments = np.concatenate([points[:-1], points[1:]],
-                                              axis=1)
-                    if lvmin is None:
-                        lvmin = param.min()
-                        lvmax = param.max()
-                    lc = LineCollection(segments,
-                                        cmap=plt.get_cmap('Spectral'),
-                                        norm=plt.Normalize(lvmin, lvmax))
-                    #lc.set_linewidth(3)
-                    lc.set_array(param.T[vind, i])
-                    plt.gca().add_collection(lc)
-                #axcb = map.colorbar(lc, location='bottom', pad='5%')
-                axcb = map.colorbar(lc, location='bottom', pad='1%')
-                try:  # Add unit to colorbar if available
-                    colorbarstring = linecolor + '  [%s]' % \
-                        (self.history_metadata[linecolor]['units'])
-                except:
-                    colorbarstring = linecolor
-                #axcb.set_label(colorbarstring)
-                axcb.set_label(colorbarstring, size=14)
-                axcb.ax.tick_params(labelsize=14)
-
-
-        map.scatter(x[range(x.shape[0]), index_of_first],
-                    y[range(x.shape[0]), index_of_first],
-                    zorder=10, edgecolor='k', linewidths=.2,
-                    color=self.status_colors['initial'],
-                    label='initial (%i)' % x.shape[0])
-        map.scatter(x[range(x.shape[0]), index_of_last],
-                    y[range(x.shape[0]), index_of_last],
-                    zorder=3, edgecolor='k', linewidths=.2,
-                    color=self.status_colors['active'],
-                    label='active (%i)' %
-                    (x.shape[0] - self.num_elements_deactivated()))
-
-        x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
-                                           self.elements_deactivated.lat)
-        # Plot deactivated elements, labeled by deactivation reason
-        for statusnum, status in enumerate(self.status_categories):
-            if status == 'active':
-                continue  # plotted above
-            if status not in self.status_colors:
-                # If no color specified, pick an unused one
-                for color in ['red', 'blue', 'green', 'black', 'gray',
-                              'cyan', 'DarkSeaGreen', 'brown']:
-                    if color not in self.status_colors.values():
-                        self.status_colors[status] = color
-                        break
-            indices = np.where(self.elements_deactivated.status == statusnum)
-            if len(indices[0]) > 0:
-                if (status == 'seeded_on_land' or
-                    status == 'seeded_at_nodata_position'):
-                    zorder = 11
+        if plot_particles:
+            if hasattr(self, 'history'):
+                # Plot trajectories
+                print("Plotting history")
+                if linecolor is None:
+                    map.plot(x.T, y.T, color='gray', alpha=alpha)
                 else:
-                    zorder = 3
-                map.scatter(x_deactivated[indices], y_deactivated[indices],
-                            zorder=zorder, edgecolor='k', linewidths=.1,
-                            color=self.status_colors[status],
-                            label='%s (%i)' % (status, len(indices[0])))
-        try:
-            if legend is not None:
-                plt.legend(loc=legend)
-        except Exception as e:
-            print( 'Cannot plot legend, due to bug in matplotlib:')
-            print traceback.format_exc()
+                    # Color lines according to given parameter
+                    try:
+                        param = self.history[linecolor]
+                    except:
+                        raise ValueError(
+                            'Available parameters to be used for linecolors: ' +
+                            str(self.history.dtype.fields))
+                    from matplotlib.collections import LineCollection
+                    for i in range(x.shape[0]):
+                        vind = np.arange(index_of_first[i], index_of_last[i] + 1)
+                        points = np.array(
+                            [x[i, vind].T, y[i, vind].T]).T.reshape(-1, 1, 2)
+                        segments = np.concatenate([points[:-1], points[1:]],
+                                                  axis=1)
+                        if lvmin is None:
+                            lvmin = param.min()
+                            lvmax = param.max()
+                        lc = LineCollection(segments,
+                                            cmap=plt.get_cmap('Spectral'),
+                                            norm=plt.Normalize(lvmin, lvmax))
+                        #lc.set_linewidth(3)
+                        lc.set_array(param.T[vind, i])
+                        plt.gca().add_collection(lc)
+                    #axcb = map.colorbar(lc, location='bottom', pad='5%')
+                    axcb = map.colorbar(lc, location='bottom', pad='1%')
+                    try:  # Add unit to colorbar if available
+                        colorbarstring = linecolor + '  [%s]' % \
+                            (self.history_metadata[linecolor]['units'])
+                    except:
+                        colorbarstring = linecolor
+                    #axcb.set_label(colorbarstring)
+                    axcb.set_label(colorbarstring, size=14)
+                    axcb.ax.tick_params(labelsize=14)
+
+
+            map.scatter(x[range(x.shape[0]), index_of_first],
+                        y[range(x.shape[0]), index_of_first],
+                        zorder=10, edgecolor='k', linewidths=.2,
+                        color=self.status_colors['initial'],
+                        label='initial (%i)' % x.shape[0])
+            map.scatter(x[range(x.shape[0]), index_of_last],
+                        y[range(x.shape[0]), index_of_last],
+                        zorder=3, edgecolor='k', linewidths=.2,
+                        color=self.status_colors['active'],
+                        label='active (%i)' %
+                        (x.shape[0] - self.num_elements_deactivated()))
+
+            x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
+                                               self.elements_deactivated.lat)
+            # Plot deactivated elements, labeled by deactivation reason
+            for statusnum, status in enumerate(self.status_categories):
+                if status == 'active':
+                    continue  # plotted above
+                if status not in self.status_colors:
+                    # If no color specified, pick an unused one
+                    for color in ['red', 'blue', 'green', 'black', 'gray',
+                                  'cyan', 'DarkSeaGreen', 'brown']:
+                        if color not in self.status_colors.values():
+                            self.status_colors[status] = color
+                            break
+                indices = np.where(self.elements_deactivated.status == statusnum)
+                if len(indices[0]) > 0:
+                    if (status == 'seeded_on_land' or
+                        status == 'seeded_at_nodata_position'):
+                        zorder = 11
+                    else:
+                        zorder = 3
+                    map.scatter(x_deactivated[indices], y_deactivated[indices],
+                                zorder=zorder, edgecolor='k', linewidths=.1,
+                                color=self.status_colors[status],
+                                label='%s (%i)' % (status, len(indices[0])))
+            try:
+                if legend is not None:
+                    plt.legend(loc=legend)
+            except Exception as e:
+                print( 'Cannot plot legend, due to bug in matplotlib:')
+                print traceback.format_exc()
 
         if background is not None:
             map_x, map_y, scalar, u_component, v_component = \
@@ -2290,7 +2312,7 @@ class OpenDriftSimulation(PhysicsMethods):
                            u_component[::skip, ::skip],
                            v_component[::skip, ::skip], scale=scale)
 
-#        if title is not None:
+###        if title is not None:
 #            if title is 'auto':
 #                if hasattr(self, 'time'):
 #                    plt.title(type(self).__name__ + '  %s to %s (%i steps)' %
@@ -2324,15 +2346,16 @@ class OpenDriftSimulation(PhysicsMethods):
 #        if trajectory_dict is not None:
 #            self._plot_trajectory_dict(map, trajectory_dict)
 #
-#        #plt.gca().tick_params(labelsize=14)
-#
-#        if filename is not None:
-#            #plt.savefig(filename, dpi=200)
-#            plt.savefig(filename)
-#            plt.close()
-#        else:
-#            if show is True:
-#                plt.show()
+        #plt.gca().tick_params(labelsize=14)
+
+        if filename is not None:
+            #plt.savefig(filename, dpi=200)
+            print("Saving plot to %s" %filename)
+            plt.savefig(filename)
+            plt.close()
+        else:
+            if show is True:
+                plt.show()
 #
 #        return map, plt
 
@@ -2374,11 +2397,9 @@ class OpenDriftSimulation(PhysicsMethods):
             v_component = data[background[1]]
             scalar = np.sqrt(u_component**2 + v_component**2)
             # NB: rotation not completed!
-            print("before rotation", reader_xmesh.shape, u_component.shape)
             u_component, v_component = reader.rotate_vectors(
                 reader_xmesh, reader_ymesh, u_component, v_component,
                 reader.proj, map.srs)
-            print("after rotation", u_component.shape)
         else:
             scalar = data[background]
             u_component = v_component = None

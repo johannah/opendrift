@@ -57,7 +57,7 @@ o.seed_elements(4.7, 59.9, radius=100, number=10,
 ########################
 ## Running model
 ########################
-o.run(steps=110,
+o.run(steps=10,
       time_step=timedelta(minutes=10))
 #from IPython import embed; embed()
 ###########################
