@@ -22,6 +22,9 @@ from netCDF4 import Dataset, MFDataset, num2date
 from basereader import BaseReader
 
 
+def convert_longitude_360_to_180(long_array):
+    return np.mod((long_array+180.0),360.) -180.
+
 class Reader(BaseReader):
 
     def __init__(self, filename=None, name=None):
@@ -61,10 +64,13 @@ class Reader(BaseReader):
 
         logging.debug('Finding coordinate variables.')
         # Find x, y and z coordinates
+        print('all variables', self.Dataset.variables.keys())
         for var_name in self.Dataset.variables:
             var = self.Dataset.variables[var_name]
-            if var.ndim > 1:
-                continue  # Coordinates must be 1D-array
+            print(var_name)
+            # JRH - some are 2 dim - will need to deal with this
+            #if var.ndim > 1:
+            #    continue  # Coordinates must be 1D-array
             attributes = var.ncattrs()
             standard_name = ''
             long_name = ''
@@ -85,6 +91,7 @@ class Reader(BaseReader):
                     long_name == 'longitude' or \
                     axis == 'X' or \
                     CoordinateAxisType == 'Lon' or \
+                    standard_name == 'Longitude' or \
                     standard_name == 'projection_x_coordinate':
                 self.xname = var_name
                 # Fix for units; should ideally use udunits package
@@ -97,6 +104,7 @@ class Reader(BaseReader):
                 self.numx = var.shape[0]
             if standard_name == 'latitude' or \
                     long_name == 'latitude' or \
+                    standard_name == 'Latitude' or \
                     axis == 'Y' or \
                     CoordinateAxisType == 'Lat' or \
                     standard_name == 'projection_y_coordinate':
@@ -127,19 +135,34 @@ class Reader(BaseReader):
                     self.time_step = None
 
         if 'x' not in locals():
+            from IPython import embed; embed()
             raise ValueError('Did not find x-coordinate variable')
         if 'y' not in locals():
+            from IPython import embed; embed()
             raise ValueError('Did not find y-coordinate variable')
         self.xmin, self.xmax = x.min(), x.max()
         self.ymin, self.ymax = y.min(), y.max()
-        self.delta_x = np.abs(x[1] - x[0])
-        self.delta_y = np.abs(y[1] - y[0])
-        if np.abs(x[-1] - x[-2]) != self.delta_x:
-            print x[1::] - x[0:-1]
-            raise ValueError('delta_x is not constant!')
-        if np.abs(y[-1] - y[-2]) != self.delta_y:
-            print y[1::] - y[0:-1]
-            raise ValueError('delta_y is not constant!')
+        #self.delta_x = np.abs(x[1] - x[0])
+        #self.delta_y = np.abs(y[1] - y[0])
+        # TODO JRH WARNING - ignoring unequal for now because I don't really
+        # know how to deal with it - instead, relaxing the spacing argument
+
+        xdiff = np.abs(np.diff(x))
+        ydiff = np.abs(np.diff(y))
+        self.delta_x = xdiff.mean()
+        self.delta_y = ydiff.mean()
+        if np.var(xdiff) > 4:
+            raise ValueError('delta_x is not constant! xdiff var is %s' %np.var(xdiff))
+        if np.var(ydiff) > 4:
+            raise ValueError('delta_y is not constant! ydiff var is %s' %np.var(ydiff))
+
+        #from IPython import embed; embed()
+        #if np.abs(x[-1] - x[-2]) != self.delta_x:
+        #    print x[1::] - x[0:-1]
+        #    raise ValueError('delta_x is not constant!')
+        #if np.abs(y[-1] - y[-2]) != self.delta_y:
+        #    print y[1::] - y[0:-1]
+        #    raise ValueError('delta_y is not constant!')
         self.x = x  # Store coordinate vectors
         self.y = y
 
@@ -155,6 +178,11 @@ class Reader(BaseReader):
                 if standard_name in self.variable_aliases:  # Mapping if needed
                     standard_name = self.variable_aliases[standard_name]
                 self.variable_mapping[standard_name] = str(var_name)
+            elif var_name in ['v','u']:
+                standard_name = self.variable_aliases[var_name]
+                self.variable_mapping[standard_name] = str(var_name)
+
+
 
         self.variables = self.variable_mapping.keys()
 
@@ -190,7 +218,6 @@ class Reader(BaseReader):
 
         indxi = indx
         indyi = indy
-        print("Xind SHAP" , indx.shape)
         # If x or y coordinates are decreasing, we need to flip
         if self.x[0] > self.x[-1]:
             indx = len(self.x) - indx
@@ -207,20 +234,19 @@ class Reader(BaseReader):
             indx[outside] = 0  # To be masked later
             indy[outside] = 0
 
-        print("Xind BLOC" , indx.shape)
         variables = {}
 
-        from IPython import embed; embed()
         for par in requested_variables:
             var = self.Dataset.variables[self.variable_mapping[par]]
 
+            from IPython import embed; embed()
             if var.ndim == 2:
                 variables[par] = var[indy, indx]
             elif var.ndim == 3:
                 variables[par] = var[indxTime, indy, indx]
             elif var.ndim == 4:
                 if jo_plot:
-                    # hack because the netcdf cannot index large num 
+                    # hack because the netcdf cannot index large num
                     ss = np.array(var[indxTime,indz,:,:])
                     assert(indx.shape == indy.shape)
                     print("MAXMIN", ss.min(), ss.max())

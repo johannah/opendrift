@@ -128,7 +128,7 @@ class OpenDriftSimulation(PhysicsMethods):
                 use_tabularised_stokes_drift = boolean(default=False)
                 tabularised_stokes_drift_fetch = option(5000, 25000, 50000, default=25000)'''
 
-    max_speed = 2  # Assumed max average speed of any element
+    max_speed = 3  # Assumed max average speed of any element
     required_profiles = None  # Optional possibility to get vertical profiles
     required_profiles_z_range = None  # [min_depth, max_depth]
 
@@ -236,7 +236,7 @@ class OpenDriftSimulation(PhysicsMethods):
             self.configobj.configspec = newconf.configspec
             newconf.merge(self.configobj)
             self.configobj = newconf
-        
+
     def _add_configstring(self, configstring):
         """Add several configuration items from string (INI-format)."""
         newconf = configobj.ConfigObj(configspec=configstring.split('\n'))
@@ -271,7 +271,7 @@ class OpenDriftSimulation(PhysicsMethods):
         for i, s in enumerate(hashstring.split(':')):
             if isinstance(c[s], dict):
                 c = c[s]
-                cs = cs[s] 
+                cs = cs[s]
         return c, cs, s
 
     def get_config(self, key):
@@ -366,7 +366,7 @@ class OpenDriftSimulation(PhysicsMethods):
             else:
                 logging.debug('%s elements hit coastline, '
                               'moving back to water' % len(on_land))
-                on_land_ID = self.elements.ID[on_land] 
+                on_land_ID = self.elements.ID[on_land]
                 self.elements.lon[on_land] = \
                     np.copy(self.previous_lon[on_land_ID - 1])
                 self.elements.lat[on_land] = \
@@ -735,7 +735,7 @@ class OpenDriftSimulation(PhysicsMethods):
                     for var in variable_group:
                         tmp_var = np.ma.masked_invalid(env_tmp[var])
                         # Changed 13 Oct 2016, but uncertain of effect
-                        # TODO: to be checked 
+                        # TODO: to be checked
                         #tmp_var = env_tmp[var]
                         if 'combined_mask' not in locals():
                             combined_mask = np.ma.getmask(tmp_var)
@@ -817,7 +817,7 @@ class OpenDriftSimulation(PhysicsMethods):
         # Parameterisation of unavailable variables
         #######################################################
         if self.get_config('drift:use_tabularised_stokes_drift') is True:
-            if (env['sea_surface_wave_stokes_drift_x_velocity'].max() == 0 and 
+            if (env['sea_surface_wave_stokes_drift_x_velocity'].max() == 0 and
                 env['sea_surface_wave_stokes_drift_y_velocity'].max() == 0):
                     logging.info('Calculating parameterised stokes drift')
                     for i in range(len(env['x_wind'])):
@@ -832,7 +832,7 @@ class OpenDriftSimulation(PhysicsMethods):
                         env['sea_surface_wave_significant_height'][i] = \
                             self.wave_significant_height_parameterised((env['x_wind'][i], env['y_wind'][i]),
                             self.get_config('drift:tabularised_stokes_drift_fetch'))
-       
+
         #####################
         # Diagnostic output
         #####################
@@ -1371,13 +1371,13 @@ class OpenDriftSimulation(PhysicsMethods):
                 and eventually written to file.
                 Timedelta object or seconds.
                 Default: same as time_step, meaning that all steps are stored
-            The length of the simulation is specified by defining one 
+            The length of the simulation is specified by defining one
                 (and only one) of the following parameters:
                 - steps: integer, maximum number of steps. End of simulation
                     will be self.start_time + steps*self.time_step
                 - duration: timedelta defining the length of the simulation
                 - end_time: datetime object defining the end of the simulation
-            export_variables: list of variables and parameter names to be 
+            export_variables: list of variables and parameter names to be
                 saved to file. Default is None (all variables are saved)
         """
 
@@ -1401,7 +1401,7 @@ class OpenDriftSimulation(PhysicsMethods):
 
         # Set projection to latlong if not taken from any of the readers
         if self.proj is not None and not (self.proj.is_latlong() or
-            'proj=merc' in self.proj.srs): 
+            'proj=merc' in self.proj.srs):
             for vector_component in vector_pairs_xy:
                 for component in vector_component:
                     if component in self.fallback_values and \
@@ -1705,7 +1705,6 @@ class OpenDriftSimulation(PhysicsMethods):
         self.interact_with_coastline()
         self.state_to_buffer()  # Append final status to buffer
 
-        #from IPython import embed; embed()
         if outfile is not None:
             logging.debug('Writing and closing output file: %s' % outfile)
             # Write buffer to outfile, and close
@@ -1808,15 +1807,15 @@ class OpenDriftSimulation(PhysicsMethods):
             latmin = lats.min() - buffer
             latmax = lats.max() + buffer
         else:
-            lonmin = -180 
-            lonmax = 180 
-            latmin = 90 
-            latmax = 90 
+            lonmin = -180
+            lonmax = 180
+            latmin = 90
+            latmax = 90
         if 'basemap_landmask' in self.readers:
             # Using an eventual Basemap already used to check stranding
             map = self.readers['basemap_landmask'].map
             lonmin = map.boundarylonmin
-            lonmax = map.boundarylonmax 
+            lonmax = map.boundarylonmax
             latmin = min(map.boundarylats)
             latmax = max(map.boundarylats)
         else:
@@ -1864,28 +1863,28 @@ class OpenDriftSimulation(PhysicsMethods):
                 delta_lon = .1
             else:
                 delta_lon = .02
-        if delta_lat != 0:
-            map.drawmeridians(np.arange(np.floor(map.lonmin),
-                                        np.ceil(map.lonmax), delta_lon),
-                              labels=[0, 0, 0, 1])
-            try:
-                map.drawparallels(np.arange(np.floor(map.latmin),
-                                            np.ceil(map.latmax), delta_lat),
-                                  labels=[0, 1, 1, 0])
-            except:
-                logging.info('Drawing of parallels failed due to bug in '
-                             'matplotlib, can be fixed as explained here: '
-                'https://sourceforge.net/p/matplotlib/mailman/message/28461289/')
-                map.drawparallels(np.arange(np.floor(map.latmin),
-                                            np.ceil(map.latmax), 1),
-                                  labels=[0, 1, 1, 0])
+        #if delta_lat != 0:
+        #    map.drawmeridians(np.arange(np.floor(map.lonmin),
+        #                                np.ceil(map.lonmax), delta_lon),
+        #                      labels=[0, 0, 0, 1])
+        #    try:
+        #        map.drawparallels(np.arange(np.floor(map.latmin),
+        #                                    np.ceil(map.latmax), delta_lat),
+        #                          labels=[0, 1, 1, 0])
+        #    except:
+        #        logging.info('Drawing of parallels failed due to bug in '
+        #                     'matplotlib, can be fixed as explained here: '
+        #        'https://sourceforge.net/p/matplotlib/mailman/message/28461289/')
+        #        map.drawparallels(np.arange(np.floor(map.latmin),
+        #                                    np.ceil(map.latmax), 1),
+        #                          labels=[0, 1, 1, 0])
         x, y = map(lons, lats)
 
         try:
             firstlast = np.ma.notmasked_edges(x, axis=1)
             index_of_first = firstlast[0][1]
             index_of_last = firstlast[1][1]
-            
+
         except:
             # JRH not sure if this is correct
             firstlast = np.ma.notmasked_edges(x, axis=1)
@@ -2169,6 +2168,7 @@ class OpenDriftSimulation(PhysicsMethods):
              drifter_file=None, show=True, vmin=None, vmax=None,
              lvmin=None, lvmax=None, skip=10, scale=10, show_scalar=True,
              contourlines=False, trajectory_dict=None, colorbar=True, plot_particles=True,
+             show_legend=True, trace_lons=np.array([]), trace_lats=np.array([]),
              title='auto', legend='best', **kwargs):
         """Basic built-in plotting function intended for developing/debugging.
 
@@ -2246,15 +2246,24 @@ class OpenDriftSimulation(PhysicsMethods):
 
             map.scatter(x[range(x.shape[0]), index_of_first],
                         y[range(x.shape[0]), index_of_first],
-                        zorder=10, edgecolor='k', linewidths=.2,
+                        zorder=10, edgecolor='k', linewidths=.1,
                         color=self.status_colors['initial'],
                         label='initial (%i)' % x.shape[0])
             map.scatter(x[range(x.shape[0]), index_of_last],
                         y[range(x.shape[0]), index_of_last],
-                        zorder=3, edgecolor='k', linewidths=.2,
+                        zorder=3, edgecolor='k', linewidths=.1,
                         color=self.status_colors['active'],
                         label='active (%i)' %
                         (x.shape[0] - self.num_elements_deactivated()))
+
+
+            if len(trace_lons):
+                for trace_lon, trace_lat in zip(trace_lons, trace_lats):
+                    trace_xs, trace_ys = map(trace_lon, trace_lat)
+                    map.scatter(trace_xs, trace_ys, zorder=9, color='k',
+                                alpha=.1, s=1, label='trace')
+                    map.scatter(trace_xs[0], trace_ys[0], zorder=4,
+                                s=30, color='r', marker='x', label='trace start')
 
             x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
                                                self.elements_deactivated.lat)
@@ -2281,8 +2290,9 @@ class OpenDriftSimulation(PhysicsMethods):
                                 color=self.status_colors[status],
                                 label='%s (%i)' % (status, len(indices[0])))
             try:
-                if legend is not None:
-                    plt.legend(loc=legend)
+                if show_legend:
+                    if legend is not None:
+                        plt.legend(loc=legend)
             except Exception as e:
                 print( 'Cannot plot legend, due to bug in matplotlib:')
                 print traceback.format_exc()
@@ -2312,6 +2322,7 @@ class OpenDriftSimulation(PhysicsMethods):
                            u_component[::skip, ::skip],
                            v_component[::skip, ::skip], scale=scale)
 
+        #from IPython import embed; embed()
 ###        if title is not None:
 #            if title is 'auto':
 #                if hasattr(self, 'time'):
@@ -2348,6 +2359,7 @@ class OpenDriftSimulation(PhysicsMethods):
 #
         #plt.gca().tick_params(labelsize=14)
 
+        plt.colorbar()
         if filename is not None:
             #plt.savefig(filename, dpi=200)
             print("Saving plot to %s" %filename)
@@ -2406,6 +2418,7 @@ class OpenDriftSimulation(PhysicsMethods):
         rlons, rlats = reader.xy2lonlat(reader_xmesh, reader_ymesh)
         map_x, map_y = map(rlons, rlats)
 
+#        from IPython import embed; embed()
         return map_x, map_y, scalar, u_component, v_component
 
     def get_density_array(self, pixelsize_m):
@@ -2509,7 +2522,7 @@ class OpenDriftSimulation(PhysicsMethods):
         nc.variables['density_submerged'][:] = H_sub
         nc.variables['density_submerged'].long_name = 'Detection probability submerged'
         nc.variables['density_submerged'].grid_mapping = 'projection_lonlat'
-        nc.variables['density_submerged'].units = '1' 
+        nc.variables['density_submerged'].units = '1'
         # Density stranded
        	nc.createVariable('density_stranded', 'u1',
                           ('time','lat', 'lon'))
@@ -2518,8 +2531,8 @@ class OpenDriftSimulation(PhysicsMethods):
         nc.variables['density_stranded'][:] = H_stranded
         nc.variables['density_stranded'].long_name = 'Detection probability stranded'
         nc.variables['density_stranded'].grid_mapping = 'projection_lonlat'
-        nc.variables['density_stranded'].units = '1' 
- 
+        nc.variables['density_stranded'].units = '1'
+
         nc.close()
 
     def write_geotiff(self, filename, pixelsize_km=.2):
@@ -2791,4 +2804,4 @@ class OpenDriftSimulation(PhysicsMethods):
             logging.info('Could not save animation:')
             logging.info(e)
             logging.debug(traceback.format_exc())
-                
+

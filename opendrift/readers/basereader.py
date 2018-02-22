@@ -95,6 +95,8 @@ class BaseReader(object):
         'northward_surface_stokes_drift': 'sea_surface_wave_stokes_drift_y_velocity',
         'eastward_sea_water_velocity': 'x_sea_water_velocity',
         'northward_sea_water_velocity': 'y_sea_water_velocity',
+        'v': 'x_sea_water_velocity',
+        'u': 'y_sea_water_velocity',
         'eastward_current_velocity': 'x_sea_water_velocity',
         'northward_current_velocity': 'y_sea_water_velocity',
         'eastward_tidal_current': 'x_sea_water_velocity',
@@ -182,7 +184,7 @@ class BaseReader(object):
             logging.debug('Setting buffer size %i for reader %s, assuming '
                           'a maximum average speed of %g m/s.' %
                           (self.buffer, self.name, max_speed))
-                
+
     def pixel_size(self):
         # Find typical pixel size (e.g. for calculating size of buffer)
         if self.projected is True:
@@ -286,7 +288,7 @@ class BaseReader(object):
         #from IPython import embed; embed();
         # if none of the considered points are covered by our map
         if len(ind_covered) == 0:
-            # JRH 
+            # JRH
             #print( 'Interpolated, All %s particles (%.10f-%.10fE, %.10f-%.10fN) ' +
             #                  'are outside domain of %s (%s)' %
             #                 (len(lon), lon.min(), lon.max(), lat.min(),
@@ -453,7 +455,7 @@ class BaseReader(object):
                                                 env_after[var] * weight_after))
 
                 if var in standard_names.keys():
-                    invalid = np.where((env[var] < standard_names[var]['valid_min']) 
+                    invalid = np.where((env[var] < standard_names[var]['valid_min'])
                                | (env[var] > standard_names[var]['valid_max']))[0]
                     if len(invalid) > 0:
                         logging.warning('Invalid values found for ' + var)
