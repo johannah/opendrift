@@ -2258,12 +2258,13 @@ class OpenDriftSimulation(PhysicsMethods):
 
 
             if len(trace_lons):
-                for trace_lon, trace_lat in zip(trace_lons, trace_lats):
+                for dnum, (trace_lon, trace_lat) in enumerate(zip(trace_lons, trace_lats)):
                     trace_xs, trace_ys = map(trace_lon, trace_lat)
                     map.scatter(trace_xs, trace_ys, zorder=9, color='k',
                                 alpha=.1, s=1, label='trace')
                     map.scatter(trace_xs[0], trace_ys[0], zorder=4,
-                                s=30, color='r', marker='x', label='trace start')
+                                s=4, color='r', marker='x', label='trace start')
+                    plt.text(trace_xs[0], trace_ys[0],str(dnum))
 
             x_deactivated, y_deactivated = map(self.elements_deactivated.lon,
                                                self.elements_deactivated.lat)
